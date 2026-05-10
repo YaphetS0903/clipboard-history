@@ -1,17 +1,19 @@
 const fs = require('fs')
 const path = require('path')
 const { randomUUID, createHash } = require('crypto')
+const { nativeImage } = require('electron')
 
 const projectRoot = path.resolve(__dirname, '../..')
 const dataDir = path.join(projectRoot, 'data')
 const imagesDir = path.join(dataDir, 'images')
+const thumbnailsDir = path.join(dataDir, 'thumbnails')
 const itemsFile = path.join(dataDir, 'clipboard-items.json')
 const settingsFile = path.join(dataDir, 'settings.json')
 const validRetentionDays = new Set([1, 3, 5])
-const validPinnedCounts = new Set([3, 5, 10, 20])
 
 function ensureDataFiles() {
   fs.mkdirSync(imagesDir, { recursive: true })
+  fs.mkdirSync(thumbnailsDir, { recursive: true })
 
   if (!fs.existsSync(itemsFile)) {
     fs.writeFileSync(itemsFile, '[]', 'utf8')
@@ -40,11 +42,19 @@ function sortNewestFirst(items) {
 
 function normalizeSettings(raw) {
   const retentionDays = validRetentionDays.has(raw.retentionDays) ? raw.retentionDays : 3
-  const maxPinnedItems = validPinnedCounts.has(raw.maxPinnedItems) ? raw.maxPinnedItems : 10
+  const maxPinnedItems = Number.isInteger(raw.maxPinnedItems) && raw.maxPinnedItems >= 1 && raw.maxPinnedItems <= 50
+    ? raw.maxPinnedItems
+    : 10
+  const pasteShortcutKey = typeof raw.pasteShortcutKey === 'string' && raw.pasteShortcutKey.length === 1
+    ? raw.pasteShortcutKey.toUpperCase()
+    : 'Q'
+  const showPinnedBar = typeof raw.showPinnedBar === 'boolean' ? raw.showPinnedBar : true
 
   return {
     retentionDays,
     maxPinnedItems,
+    pasteShortcutKey,
+    showPinnedBar,
   }
 }
 
@@ -69,6 +79,21 @@ function setMaxPinnedItems(maxPinnedItems) {
   const settings = { ...getSettings(), maxPinnedItems }
   writeSettings(settings)
   enforcePinnedLimitOnItems(getItems(), getSettings().maxPinnedItems)
+  return getSettings()
+}
+
+function setPasteShortcutKey(key) {
+  ensureDataFiles()
+  const upperKey = typeof key === 'string' && key.length === 1 ? key.toUpperCase() : 'Q'
+  const settings = { ...getSettings(), pasteShortcutKey: upperKey }
+  writeSettings(settings)
+  return getSettings()
+}
+
+function setShowPinnedBar(show) {
+  ensureDataFiles()
+  const settings = { ...getSettings(), showPinnedBar: Boolean(show) }
+  writeSettings(settings)
   return getSettings()
 }
 
@@ -100,6 +125,17 @@ function hashBuffer(buffer) {
 function saveImage(buffer, id) {
   const imagePath = path.join(imagesDir, `${id}.png`)
   fs.writeFileSync(imagePath, buffer)
+
+  // 生成缩略图
+  try {
+    const image = nativeImage.createFromBuffer(buffer)
+    const thumbnail = image.resize({ width: 200, quality: 'good' })
+    const thumbnailPath = path.join(thumbnailsDir, `${id}.png`)
+    fs.writeFileSync(thumbnailPath, thumbnail.toPNG())
+  } catch (e) {
+    console.log('生成缩略图失败:', e.message)
+  }
+
   return imagePath
 }
 
@@ -198,8 +234,14 @@ function deleteItem(id) {
     return false
   }
 
-  if (item.type === 'image' && item.imagePath && fs.existsSync(item.imagePath)) {
-    fs.unlinkSync(item.imagePath)
+  if (item.type === 'image' && item.imagePath) {
+    if (fs.existsSync(item.imagePath)) {
+      fs.unlinkSync(item.imagePath)
+    }
+    const thumbnailPath = path.join(thumbnailsDir, `${id}.png`)
+    if (fs.existsSync(thumbnailPath)) {
+      fs.unlinkSync(thumbnailPath)
+    }
   }
 
   writeItems(items.filter(entry => entry.id !== id))
@@ -220,8 +262,14 @@ function cleanupExpired() {
       continue
     }
 
-    if (item.type === 'image' && item.imagePath && fs.existsSync(item.imagePath)) {
-      fs.unlinkSync(item.imagePath)
+    if (item.type === 'image' && item.imagePath) {
+      if (fs.existsSync(item.imagePath)) {
+        fs.unlinkSync(item.imagePath)
+      }
+      const thumbnailPath = path.join(thumbnailsDir, `${item.id}.png`)
+      if (fs.existsSync(thumbnailPath)) {
+        fs.unlinkSync(thumbnailPath)
+      }
     }
   }
 
@@ -233,7 +281,13 @@ function itemToRenderer(item) {
   if (item.type === 'image') {
     let imageDataUrl = null
 
-    if (item.imagePath && fs.existsSync(item.imagePath)) {
+    // 优先使用缩略图
+    const thumbnailPath = path.join(thumbnailsDir, `${item.id}.png`)
+    if (fs.existsSync(thumbnailPath)) {
+      const buffer = fs.readFileSync(thumbnailPath)
+      imageDataUrl = `data:image/png;base64,${buffer.toString('base64')}`
+    } else if (item.imagePath && fs.existsSync(item.imagePath)) {
+      // 如果缩略图不存在，使用原图
       const buffer = fs.readFileSync(item.imagePath)
       imageDataUrl = `data:image/png;base64,${buffer.toString('base64')}`
     }
@@ -286,6 +340,8 @@ module.exports = {
   getSettings,
   setRetentionDays,
   setMaxPinnedItems,
+  setPasteShortcutKey,
+  setShowPinnedBar,
   getItemsForRenderer,
   getPinnedItemsForRenderer,
   getItemById,

@@ -14,11 +14,17 @@ body,
   height: 100%;
 }
 
-body {
-  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Microsoft YaHei', sans-serif;
-  background: linear-gradient(180deg, #f7fbff 0%, #eef5ff 100%);
-  color: #333333;
+body[data-window-role='pinned'],
+body[data-window-role='pinned'] #root {
+  background: transparent;
 }
+
+body[data-window-role='pinned'] .pinned-shell:not(.pinned-shell--expanded) {
+  background: linear-gradient(90deg, #b8d9ff 0%, #a0c8ff 50%, #b8d9ff 100%);
+  border-radius: 999px;
+  overflow: hidden;
+}
+
 
 button,
 input {
@@ -286,7 +292,7 @@ img {
   padding: 0;
   border: none;
   box-shadow: none;
-  background: transparent;
+  background: linear-gradient(90deg, #b8d9ff 0%, #a0c8ff 50%, #b8d9ff 100%);
   border-radius: 999px;
 }
 
@@ -300,14 +306,23 @@ img {
 
 .pinned-handle {
   width: 100%;
-  height: 18px;
+  height: 100%;
   border-radius: 999px;
-  background: linear-gradient(90deg, #cfe6ff 0%, #e8f4ff 100%);
+  background: transparent;
   display: flex;
   align-items: center;
   justify-content: center;
   -webkit-app-region: drag;
   padding: 0;
+  cursor: pointer;
+}
+
+.pinned-handle--expanded {
+  height: 18px;
+  flex-shrink: 0;
+  background: linear-gradient(90deg, #b8d9ff 0%, #a0c8ff 50%, #b8d9ff 100%);
+  box-shadow: 0 2px 8px rgba(100, 160, 220, 0.3);
+  cursor: default;
 }
 
 .pinned-handle--expanded {

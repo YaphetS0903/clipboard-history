@@ -1,8 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
 
-const retentionOptions = [1, 3, 5]
-const pinnedCountOptions = [3, 5, 10, 20]
-
 function formatTime(value) {
   const date = new Date(value)
   return new Intl.DateTimeFormat('zh-CN', {
@@ -127,59 +124,60 @@ function PinnedOverlay() {
 
   return (
     <div className={expanded ? 'pinned-shell pinned-shell--expanded' : 'pinned-shell'}>
-      <div className={expanded ? 'pinned-handle pinned-handle--expanded' : 'pinned-handle'} title={`当前置顶 ${items.length} 条`}>
-        {expanded ? (
-          <button className="pinned-handle__collapse" onClick={() => updateExpanded(false)}>
-            收起
-          </button>
-        ) : (
-          <button className="pinned-handle__toggle" onClick={() => updateExpanded(true)}>
+      {expanded ? (
+        <>
+          <div className="pinned-handle pinned-handle--expanded" title={`当前置顶 ${items.length} 条`}>
+            <button className="pinned-handle__collapse" onClick={() => updateExpanded(false)}>
+              收起
+            </button>
+          </div>
+          <div className="pinned-list">
+            {items.length === 0 ? (
+              <div className="pinned-empty">暂无置顶内容</div>
+            ) : (
+              items.map(item => (
+                <button key={item.id} className="pinned-card" onClick={() => handleCopy(item.id)}>
+                  <div className="pinned-card__head">
+                    <span className="item-badge">{item.type === 'image' ? '图片' : '文字'}</span>
+                    <span className="item-time">{formatTime(item.createdAt)}</span>
+                  </div>
+                  {item.type === 'image' ? (
+                    item.imageDataUrl ? <img className="pinned-image" src={item.imageDataUrl} alt="pinned" /> : <div className="pinned-image pinned-image--empty">图片</div>
+                  ) : (
+                    <div className="pinned-text">{item.text.length > 50 ? `${item.text.slice(0, 50)}...` : item.text}</div>
+                  )}
+                  <div className="pinned-actions">
+                    <button
+                      className="pin-button pin-button--active"
+                      onClick={event => {
+                        event.stopPropagation()
+                        handleTogglePinned(item.id)
+                      }}
+                    >
+                      取消置顶
+                    </button>
+                    <button
+                      className="danger-button"
+                      onClick={event => {
+                        event.stopPropagation()
+                        handleDelete(item.id)
+                      }}
+                    >
+                      删除
+                    </button>
+                  </div>
+                </button>
+              ))
+            )}
+          </div>
+        </>
+      ) : (
+        <div className="pinned-handle" title={`当前置顶 ${items.length} 条`} onClick={() => updateExpanded(true)}>
+          <button className="pinned-handle__toggle">
             <span className="pinned-handle__dot" />
           </button>
-        )}
-      </div>
-
-      {expanded ? (
-        <div className="pinned-list">
-          {items.length === 0 ? (
-            <div className="pinned-empty">暂无置顶内容</div>
-          ) : (
-            items.map(item => (
-              <button key={item.id} className="pinned-card" onClick={() => handleCopy(item.id)}>
-                <div className="pinned-card__head">
-                  <span className="item-badge">{item.type === 'image' ? '图片' : '文字'}</span>
-                  <span className="item-time">{formatTime(item.createdAt)}</span>
-                </div>
-                {item.type === 'image' ? (
-                  item.imageDataUrl ? <img className="pinned-image" src={item.imageDataUrl} alt="pinned" /> : <div className="pinned-image pinned-image--empty">图片</div>
-                ) : (
-                  <div className="pinned-text">{item.text.length > 50 ? `${item.text.slice(0, 50)}...` : item.text}</div>
-                )}
-                <div className="pinned-actions">
-                  <button
-                    className="pin-button pin-button--active"
-                    onClick={event => {
-                      event.stopPropagation()
-                      handleTogglePinned(item.id)
-                    }}
-                  >
-                    取消置顶
-                  </button>
-                  <button
-                    className="danger-button"
-                    onClick={event => {
-                      event.stopPropagation()
-                      handleDelete(item.id)
-                    }}
-                  >
-                    删除
-                  </button>
-                </div>
-              </button>
-            ))
-          )}
         </div>
-      ) : null}
+      )}
     </div>
   )
 }
@@ -187,8 +185,6 @@ function PinnedOverlay() {
 function MainApp() {
   const [items, setItems] = useState([])
   const [query, setQuery] = useState('')
-  const [retentionDays, setRetentionDays] = useState(3)
-  const [maxPinnedItems, setMaxPinnedItems] = useState(10)
   const [loading, setLoading] = useState(true)
   const [statusText, setStatusText] = useState('正在监听剪贴板，复制后会自动置顶...')
 
@@ -201,27 +197,13 @@ function MainApp() {
   }
 
   useEffect(() => {
-    let cancelled = false
-
-    async function initialize() {
-      const settings = await window.electronAPI.getSettings()
-
-      if (!cancelled) {
-        setRetentionDays(settings.retentionDays)
-        setMaxPinnedItems(settings.maxPinnedItems)
-      }
-
-      await loadItems('')
-    }
-
-    initialize()
+    loadItems('')
 
     const removeListener = window.electronAPI.onHistoryUpdated(() => {
       loadItems(query)
     })
 
     return () => {
-      cancelled = true
       removeListener()
     }
   }, [])
@@ -249,20 +231,6 @@ function MainApp() {
     setStatusText(result.pinned ? '已加入桌面置顶' : '已取消桌面置顶')
   }
 
-  async function handleRetentionChange(nextValue) {
-    const settings = await window.electronAPI.setRetentionDays(nextValue)
-    setRetentionDays(settings.retentionDays)
-    setStatusText(`已设置保存 ${settings.retentionDays} 天`)
-    loadItems(query)
-  }
-
-  async function handleMaxPinnedChange(nextValue) {
-    const settings = await window.electronAPI.setMaxPinnedItems(nextValue)
-    setMaxPinnedItems(settings.maxPinnedItems)
-    setStatusText(`已设置置顶显示 ${settings.maxPinnedItems} 条`)
-    loadItems(query)
-  }
-
   return (
     <div className="app-shell">
       <header className="top-panel">
@@ -281,38 +249,6 @@ function MainApp() {
           value={query}
           onChange={event => setQuery(event.target.value)}
         />
-
-        <div className="setting-grid">
-          <div className="retention-row">
-            <span className="section-label">保存时长</span>
-            <div className="retention-group">
-              {retentionOptions.map(option => (
-                <button
-                  key={option}
-                  className={option === retentionDays ? 'retention-button retention-button--active' : 'retention-button'}
-                  onClick={() => handleRetentionChange(option)}
-                >
-                  {option}天
-                </button>
-              ))}
-            </div>
-          </div>
-
-          <div className="retention-row">
-            <span className="section-label">置顶显示几条</span>
-            <div className="retention-group">
-              {pinnedCountOptions.map(option => (
-                <button
-                  key={option}
-                  className={option === maxPinnedItems ? 'retention-button retention-button--active' : 'retention-button'}
-                  onClick={() => handleMaxPinnedChange(option)}
-                >
-                  {option}条
-                </button>
-              ))}
-            </div>
-          </div>
-        </div>
       </section>
 
       <section className="list-panel">
@@ -336,6 +272,14 @@ function MainApp() {
 
 function App() {
   const role = window.electronAPI.getWindowRole()
+
+  useEffect(() => {
+    document.body.dataset.windowRole = role
+    return () => {
+      delete document.body.dataset.windowRole
+    }
+  }, [role])
+
   return role === 'pinned' ? <PinnedOverlay /> : <MainApp />
 }
 

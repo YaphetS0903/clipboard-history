@@ -10,6 +10,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
   setRetentionDays: retentionDays => ipcRenderer.invoke('settings:setRetentionDays', retentionDays),
   setMaxPinnedItems: maxPinnedItems => ipcRenderer.invoke('settings:setMaxPinnedItems', maxPinnedItems),
   setPinnedWindowExpanded: expanded => ipcRenderer.invoke('pinnedWindow:setExpanded', expanded),
+  sendInputDialogValue: value => ipcRenderer.send('input-dialog-value', value),
   getWindowRole: () => {
     const argument = process.argv.find(item => item.startsWith('--window-role='))
     return argument ? argument.replace('--window-role=', '') : 'main'
