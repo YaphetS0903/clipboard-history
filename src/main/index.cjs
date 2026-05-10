@@ -1,5 +1,6 @@
 const { app, BrowserWindow, ipcMain, clipboard, nativeImage, screen, Menu, Tray, globalShortcut } = require('electron')
 const path = require('path')
+const fs = require('fs')
 const {
   ensureDataFiles,
   getItemsForRenderer,
@@ -375,6 +376,12 @@ function createInputDialog(title, message, defaultValue, inputType, callback) {
 }
 
 function createMainWindow() {
+  const iconPath = path.join(__dirname, '../../assets/icon.png')
+  let icon = null
+  if (fs.existsSync(iconPath)) {
+    icon = nativeImage.createFromBuffer(fs.readFileSync(iconPath))
+  }
+
   mainWindow = new BrowserWindow({
     width: 420,
     height: 720,
@@ -382,6 +389,7 @@ function createMainWindow() {
     minHeight: 520,
     backgroundColor: '#F5F9FF',
     title: '历史粘贴板',
+    icon: icon,
     webPreferences: {
       nodeIntegration: false,
       contextIsolation: true,
@@ -489,9 +497,17 @@ function ensurePinnedWindowVisibility() {
 }
 
 function createTray() {
-  const icon = nativeImage.createFromDataURL(
-    'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAABAAAAAQCAYAAAAf8/9hAAAABHNCSVQICAgIfAhkiAAAAAlwSFlzAAAAdgAAAHYBTnsmCAAAABl0RVh0U29mdHdhcmUAd3d3Lmlua2NvcGVyYXRvcgBtZXRhLmpwZy5lcGxhbnRzLmNvbQBGaAADAAAAAXNSR0IArs4c6QAAAARnQU1BAACxjwv8YQUAAABKSURBVHjaY2AgCZj4D8T9HxMDI/OD+T8jAwMD4f9HxDAwMDIwB4AY6P//Z2RkZPj/mJgYGBgYGBj+PzMDAwMDA8P8f2YGBgYGBob5/8wMDAwMDAzz/5kZGBgYGBjm/zMzMDAwMDDM/2dmYGBgYGBg+f/MDAwMDAwM8/+ZGRgYGBgY5v8zMzAwMDAwzP9nZmBgYGBgYPn/zAwMDAwMDPP/mRkYGBgYGBj+/zMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwAAAJcFzj4B6Zq6AAAAAElFTkSuQmCC'
-  )
+  const iconPath = path.join(__dirname, '../../assets/icon.png')
+  let icon
+
+  if (fs.existsSync(iconPath)) {
+    const iconBuffer = fs.readFileSync(iconPath)
+    icon = nativeImage.createFromBuffer(iconBuffer).resize({ width: 16, height: 16 })
+  } else {
+    icon = nativeImage.createFromDataURL(
+      'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAABAAAAAQCAYAAAAf8/9hAAAABHNCSVQICAgIfAhkiAAAAAlwSFlzAAAAdgAAAHYBTnsmCAAAABl0RVh0U29mdHdhcmUAd3d3Lmlua2NvcGVyYXRvcgBtZXRhLmpwZy5lcGxhbnRzLmNvbQBGaAADAAAAAXNSR0IArs4c6QAAAARnQU1BAACxjwv8YQUAAABKSURBVHjaY2AgCZj4D8T9HxMDI/OD+T8jAwMD4f9HxDAwMDIwB4AY6P//Z2RkZPj/mJgYGBgYGBj+PzMDAwMDA8P8f2YGBgYGBob5/8wMDAwMDAzz/5kZGBgYGBjm/zMzMDAwMDDM/2dmYGBgYGBg+f/MDAwMDAwM8/+ZGRgYGBgY5v8zMzAwMDAwzP9nZmBgYGBgYPn/zAwMDAwMDPP/mRkYGBgYGBj+/zMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwAAAJcFzj4B6Zq6AAAAAElFTkSuQmCC'
+    )
+  }
 
   tray = new Tray(icon)
 
