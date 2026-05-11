@@ -45,11 +45,15 @@
     "win": {
       "target": [
         {
+          "target": "nsis",
+          "arch": ["x64"]
+        },
+        {
           "target": "zip",
           "arch": ["x64"]
         }
       ],
-      "icon": "assets/icon-clean.ico"
+      "icon": "assets/icon.ico"
     },
     "nsis": {
       "oneClick": false,

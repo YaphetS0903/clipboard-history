@@ -412,7 +412,7 @@ function createInputDialog(title, message, defaultValue, inputType, callback) {
 }
 
 function createMainWindow() {
-  const iconPath = path.join(__dirname, '../../assets/icon-clean.png')
+  const iconPath = path.join(__dirname, '../../assets/icon.png')
   let icon = null
   if (fs.existsSync(iconPath)) {
     icon = nativeImage.createFromBuffer(fs.readFileSync(iconPath))
@@ -592,7 +592,7 @@ function ensurePinnedWindowVisibility() {
 }
 
 function createTray() {
-  const iconPath = path.join(__dirname, '../../assets/icon-clean.png')
+  const iconPath = path.join(__dirname, '../../assets/icon.png')
   let icon
 
   if (fs.existsSync(iconPath)) {
