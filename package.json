@@ -2,6 +2,7 @@
   "name": "clipboard-history",
   "version": "1.0.0",
   "description": "历史粘贴板 - Windows剪贴板历史记录工具",
+  "author": "YaphetS0903",
   "main": "src/main/index.cjs",
   "scripts": {
     "predev": "powershell -NoProfile -Command \"$ids = @(Get-NetTCPConnection -LocalPort 5174 -State Listen -ErrorAction SilentlyContinue | Select-Object -ExpandProperty OwningProcess -Unique); foreach ($id in $ids) { Stop-Process -Id $id -Force -ErrorAction SilentlyContinue }; exit 0\"",
@@ -9,7 +10,8 @@
     "dev:vite": "vite",
     "dev:electron": "wait-on http://localhost:5174 && electron .",
     "build": "vite build",
-    "build:electron": "npm run build && electron-builder",
+    "build:electron": "npm run build && electron-builder --win --x64",
+    "build:dir": "npm run build && electron-builder --win --x64 --dir",
     "preview": "vite preview"
   },
   "dependencies": {
@@ -37,10 +39,16 @@
     "files": [
       "src/main/**/*",
       "src/preload/**/*",
-      "dist/**/*"
+      "dist/**/*",
+      "assets/**/*"
     ],
     "win": {
-      "target": "nsis",
+      "target": [
+        {
+          "target": "zip",
+          "arch": ["x64"]
+        }
+      ],
       "icon": "assets/icon-clean.ico"
     },
     "nsis": {
