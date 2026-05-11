@@ -1,17 +1,39 @@
 const fs = require('fs')
 const path = require('path')
 const { randomUUID, createHash } = require('crypto')
-const { nativeImage } = require('electron')
+const { nativeImage, app } = require('electron')
 
 const projectRoot = path.resolve(__dirname, '../..')
-const dataDir = path.join(projectRoot, 'data')
-const imagesDir = path.join(dataDir, 'images')
-const thumbnailsDir = path.join(dataDir, 'thumbnails')
-const itemsFile = path.join(dataDir, 'clipboard-items.json')
-const settingsFile = path.join(dataDir, 'settings.json')
+
+function getDataDir() {
+  return app.isPackaged
+    ? path.join(app.getPath('userData'), 'data')
+    : path.join(projectRoot, 'data')
+}
+
+function getImagesDir() {
+  return path.join(getDataDir(), 'images')
+}
+
+function getThumbnailsDir() {
+  return path.join(getDataDir(), 'thumbnails')
+}
+
+function getItemsFile() {
+  return path.join(getDataDir(), 'clipboard-items.json')
+}
+
+function getSettingsFile() {
+  return path.join(getDataDir(), 'settings.json')
+}
 const validRetentionDays = new Set([1, 3, 5])
 
 function ensureDataFiles() {
+  const imagesDir = getImagesDir()
+  const thumbnailsDir = getThumbnailsDir()
+  const itemsFile = getItemsFile()
+  const settingsFile = getSettingsFile()
+
   fs.mkdirSync(imagesDir, { recursive: true })
   fs.mkdirSync(thumbnailsDir, { recursive: true })
 
@@ -60,11 +82,11 @@ function normalizeSettings(raw) {
 
 function getSettings() {
   ensureDataFiles()
-  return normalizeSettings(readJson(settingsFile, { retentionDays: 3, maxPinnedItems: 10 }))
+  return normalizeSettings(readJson(getSettingsFile(), { retentionDays: 3, maxPinnedItems: 10 }))
 }
 
 function writeSettings(settings) {
-  writeJson(settingsFile, normalizeSettings(settings))
+  writeJson(getSettingsFile(), normalizeSettings(settings))
 }
 
 function setRetentionDays(retentionDays) {
@@ -108,14 +130,14 @@ function getItems() {
   ensureDataFiles()
 
   return sortNewestFirst(
-    readJson(itemsFile, [])
+    readJson(getItemsFile(), [])
       .filter(item => item && item.id && item.type && item.createdAt)
       .map(normalizeItem),
   )
 }
 
 function writeItems(items) {
-  writeJson(itemsFile, sortNewestFirst(items.map(normalizeItem)))
+  writeJson(getItemsFile(), sortNewestFirst(items.map(normalizeItem)))
 }
 
 function hashBuffer(buffer) {
@@ -123,14 +145,14 @@ function hashBuffer(buffer) {
 }
 
 function saveImage(buffer, id) {
-  const imagePath = path.join(imagesDir, `${id}.png`)
+  const imagePath = path.join(getImagesDir(), `${id}.png`)
   fs.writeFileSync(imagePath, buffer)
 
   // 生成缩略图
   try {
     const image = nativeImage.createFromBuffer(buffer)
     const thumbnail = image.resize({ width: 200, quality: 'good' })
-    const thumbnailPath = path.join(thumbnailsDir, `${id}.png`)
+    const thumbnailPath = path.join(getThumbnailsDir(), `${id}.png`)
     fs.writeFileSync(thumbnailPath, thumbnail.toPNG())
   } catch (e) {
     console.log('生成缩略图失败:', e.message)
@@ -238,7 +260,7 @@ function deleteItem(id) {
     if (fs.existsSync(item.imagePath)) {
       fs.unlinkSync(item.imagePath)
     }
-    const thumbnailPath = path.join(thumbnailsDir, `${id}.png`)
+    const thumbnailPath = path.join(getThumbnailsDir(), `${id}.png`)
     if (fs.existsSync(thumbnailPath)) {
       fs.unlinkSync(thumbnailPath)
     }
@@ -266,7 +288,7 @@ function cleanupExpired() {
       if (fs.existsSync(item.imagePath)) {
         fs.unlinkSync(item.imagePath)
       }
-      const thumbnailPath = path.join(thumbnailsDir, `${item.id}.png`)
+      const thumbnailPath = path.join(getThumbnailsDir(), `${item.id}.png`)
       if (fs.existsSync(thumbnailPath)) {
         fs.unlinkSync(thumbnailPath)
       }
@@ -282,7 +304,7 @@ function itemToRenderer(item) {
     let imageDataUrl = null
 
     // 优先使用缩略图
-    const thumbnailPath = path.join(thumbnailsDir, `${item.id}.png`)
+    const thumbnailPath = path.join(getThumbnailsDir(), `${item.id}.png`)
     if (fs.existsSync(thumbnailPath)) {
       const buffer = fs.readFileSync(thumbnailPath)
       imageDataUrl = `data:image/png;base64,${buffer.toString('base64')}`

@@ -1,6 +1,7 @@
 const { app, BrowserWindow, ipcMain, clipboard, nativeImage, screen, Menu, Tray, globalShortcut } = require('electron')
 const path = require('path')
 const fs = require('fs')
+const os = require('os')
 const {
   ensureDataFiles,
   getItemsForRenderer,
@@ -27,6 +28,42 @@ let isPinnedWindowDragging = false
 let tray = null
 let inputDialogCallback = null
 let pasteIndex = 0 // 粘贴快捷键的索引
+let isQuitting = false
+
+function logMain(message) {
+  try {
+    const paths = [path.join(os.tmpdir(), 'clipboard-history-main.log')]
+
+    try {
+      if (app && typeof app.getPath === 'function') {
+        paths.unshift(path.join(app.getPath('userData'), 'main.log'))
+      }
+    } catch {
+      // ignore
+    }
+
+    const line = `[${new Date().toISOString()}] ${message}\n`
+    for (const logPath of new Set(paths)) {
+      try {
+        fs.appendFileSync(logPath, line, 'utf8')
+      } catch {
+        // ignore
+      }
+    }
+  } catch {
+    // ignore
+  }
+}
+
+process.on('uncaughtException', (error) => {
+  logMain(`uncaughtException: ${error.stack || error.message}`)
+})
+
+process.on('unhandledRejection', (reason) => {
+  logMain(`unhandledRejection: ${reason && reason.stack ? reason.stack : String(reason)}`)
+})
+
+logMain('main module loaded')
 
 function getWorkArea() {
   return screen.getPrimaryDisplay().workArea
@@ -94,16 +131,15 @@ function showMainWindow() {
     return
   }
 
-  // 如果窗口已显示，则隐藏；否则显示
-  if (mainWindow.isVisible()) {
-    mainWindow.hide()
-  } else {
-    if (mainWindow.isMinimized()) {
-      mainWindow.restore()
-    }
-    mainWindow.show()
-    mainWindow.focus()
+  if (mainWindow.isMinimized()) {
+    mainWindow.restore()
   }
+
+  if (!mainWindow.isVisible()) {
+    mainWindow.show()
+  }
+
+  mainWindow.focus()
 }
 
 function getPinnedWindowBounds() {
@@ -387,6 +423,7 @@ function createMainWindow() {
     height: 720,
     minWidth: 380,
     minHeight: 520,
+    show: false,
     backgroundColor: '#F5F9FF',
     title: '历史粘贴板',
     icon: icon,
@@ -397,15 +434,56 @@ function createMainWindow() {
     },
   })
 
-  mainWindow.loadURL('http://localhost:5174')
+  mainWindow.once('ready-to-show', () => {
+    logMain('main window ready-to-show')
+    if (!mainWindow || mainWindow.isDestroyed()) {
+      return
+    }
+    mainWindow.show()
+    mainWindow.focus()
+  })
+
+  mainWindow.webContents.on('did-finish-load', () => {
+    logMain('main window did-finish-load')
+    if (!mainWindow || mainWindow.isDestroyed()) {
+      return
+    }
+    if (!mainWindow.isVisible()) {
+      mainWindow.show()
+    }
+  })
+
+  mainWindow.webContents.on('did-fail-load', (_event, errorCode, errorDescription, validatedURL) => {
+    logMain(`main window did-fail-load: ${errorCode} ${errorDescription} ${validatedURL}`)
+  })
+
+  mainWindow.webContents.on('render-process-gone', (_event, details) => {
+    logMain(`main window render-process-gone: ${JSON.stringify(details)}`)
+  })
+
+  const loadTarget = !app.isPackaged
+    ? 'http://localhost:5174'
+    : path.join(__dirname, '../../dist/index.html')
+  logMain(`createMainWindow packaged=${app.isPackaged} target=${loadTarget}`)
+
+  if (!app.isPackaged) {
+    mainWindow.loadURL(loadTarget)
+  } else {
+    mainWindow.loadFile(loadTarget)
+  }
 
   // 关闭窗口时隐藏而不是销毁
   mainWindow.on('close', (event) => {
+    if (isQuitting) {
+      return
+    }
+
     event.preventDefault()
     mainWindow.hide()
   })
 
   mainWindow.on('closed', () => {
+    logMain('main window closed')
     mainWindow = null
   })
 }
@@ -439,15 +517,31 @@ function createPinnedWindow() {
 
   // 设置窗口忽略鼠标事件穿透透明区域
   pinnedWindow.on('ready-to-show', () => {
+    logMain('pinned window ready-to-show')
     // 收起态时设置形状为圆角矩形
     if (!pinnedWindowExpanded) {
       pinnedWindow.setSize(88, 18)
     }
   })
 
+  pinnedWindow.webContents.on('did-finish-load', () => {
+    logMain('pinned window did-finish-load')
+  })
+
+  pinnedWindow.webContents.on('did-fail-load', (_event, errorCode, errorDescription, validatedURL) => {
+    logMain(`pinned window did-fail-load: ${errorCode} ${errorDescription} ${validatedURL}`)
+  })
+
   pinnedWindow.setAlwaysOnTop(true, 'screen-saver')
   pinnedWindow.setVisibleOnAllWorkspaces(true)
-  pinnedWindow.loadURL('http://localhost:5174/#/pinned')
+
+  // 开发环境加载本地服务器，生产环境加载打包后的文件
+  if (!app.isPackaged) {
+    pinnedWindow.loadURL('http://localhost:5174/#/pinned')
+  } else {
+    const indexPath = path.join(__dirname, '../../dist/index.html')
+    pinnedWindow.loadFile(indexPath, { hash: '/pinned' })
+  }
 
   // 拖拽开始时不干预，拖拽结束后再约束位置
   pinnedWindow.on('will-move', () => {
@@ -460,6 +554,7 @@ function createPinnedWindow() {
   })
 
   pinnedWindow.on('closed', () => {
+    logMain('pinned window closed')
     pinnedWindow = null
     pinnedWindowExpanded = false
   })
@@ -626,27 +721,43 @@ function copyLatestItem() {
 app.disableHardwareAcceleration()
 
 app.whenReady().then(() => {
-  ensureDataFiles()
-  buildApplicationMenu()
-  createMainWindow()
-  startClipboardMonitor(sendHistoryUpdate)
-  ensurePinnedWindowVisibility()
-  createTray()
-  registerGlobalShortcut()
+  try {
+    logMain(`app ready packaged=${app.isPackaged}`)
+    ensureDataFiles()
+    logMain('ensureDataFiles done')
+    buildApplicationMenu()
+    logMain('buildApplicationMenu done')
+    createMainWindow()
+    logMain('createMainWindow done')
+    startClipboardMonitor(sendHistoryUpdate)
+    logMain('startClipboardMonitor done')
+    ensurePinnedWindowVisibility()
+    logMain('ensurePinnedWindowVisibility done')
+    createTray()
+    logMain('createTray done')
+    registerGlobalShortcut()
+    logMain('registerGlobalShortcut done')
 
-  app.on('activate', () => {
-    if (BrowserWindow.getAllWindows().length === 0) {
-      createMainWindow()
-    }
-  })
+    app.on('activate', () => {
+      if (BrowserWindow.getAllWindows().length === 0) {
+        createMainWindow()
+      }
+    })
+  } catch (error) {
+    logMain(`whenReady failed: ${error.stack || error.message}`)
+    throw error
+  }
 })
 
 // 关闭所有窗口时不退出，最小化到托盘
 app.on('window-all-closed', () => {
+  logMain('window-all-closed')
   // 不退出，保持在托盘运行
 })
 
 app.on('before-quit', () => {
+  isQuitting = true
+  logMain('before-quit')
   stopClipboardMonitor()
   globalShortcut.unregisterAll()
 })
