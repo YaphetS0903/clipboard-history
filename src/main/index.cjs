@@ -663,10 +663,17 @@ function registerGlobalShortcut() {
 }
 
 function setAutoLaunch(enable) {
-  app.setLoginItemSettings({
+  const options = {
     openAtLogin: enable,
     openAsHidden: true,
-  })
+  }
+
+  // Windows 打包后需要显式指定可执行文件路径
+  if (process.platform === 'win32' && app.isPackaged) {
+    options.path = process.execPath
+  }
+
+  app.setLoginItemSettings(options)
 }
 
 function isAutoLaunchEnabled() {
