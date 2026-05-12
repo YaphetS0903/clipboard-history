@@ -14,6 +14,8 @@ const {
   setPasteShortcutKey,
   setShowPinnedBar,
   togglePinned,
+  getPinnedWindowPosition,
+  setPinnedWindowPosition,
 } = require('./store.cjs')
 const {
   startClipboardMonitor,
@@ -113,6 +115,9 @@ function clampPinnedWindowToTop(windowInstance) {
       height: size.height,
     })
   }
+
+  // 保存置顶条位置
+  setPinnedWindowPosition(bounds.x, bounds.y)
 }
 
 function sendHistoryUpdate() {
@@ -145,6 +150,25 @@ function showMainWindow() {
 function getPinnedWindowBounds() {
   const workArea = getWorkArea()
   const size = getPinnedWindowSize()
+  const savedPos = getPinnedWindowPosition()
+
+  // 如果有保存的位置，优先使用
+  if (savedPos) {
+    const x = Math.min(
+      Math.max(savedPos.x, workArea.x),
+      workArea.x + workArea.width - size.width,
+    )
+    const y = Math.min(
+      Math.max(savedPos.y, workArea.y),
+      workArea.y + workArea.height - size.height,
+    )
+    return {
+      width: size.width,
+      height: size.height,
+      x,
+      y,
+    }
+  }
 
   return {
     width: size.width,
@@ -726,6 +750,24 @@ function copyLatestItem() {
 }
 
 app.disableHardwareAcceleration()
+
+// 单实例锁：防止多开
+const gotTheLock = app.requestSingleInstanceLock()
+if (!gotTheLock) {
+  // 已有实例运行，直接退出
+  app.quit()
+} else {
+  // 第二个实例启动时，激活已有窗口
+  app.on('second-instance', () => {
+    if (mainWindow) {
+      if (mainWindow.isMinimized()) {
+        mainWindow.restore()
+      }
+      mainWindow.show()
+      mainWindow.focus()
+    }
+  })
+}
 
 app.whenReady().then(() => {
   try {

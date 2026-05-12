@@ -119,6 +119,21 @@ function setShowPinnedBar(show) {
   return getSettings()
 }
 
+function getPinnedWindowPosition() {
+  const settings = getSettings()
+  if (settings.pinnedWindowX !== undefined && settings.pinnedWindowY !== undefined) {
+    return { x: settings.pinnedWindowX, y: settings.pinnedWindowY }
+  }
+  return null
+}
+
+function setPinnedWindowPosition(x, y) {
+  ensureDataFiles()
+  const settings = { ...getSettings(), pinnedWindowX: x, pinnedWindowY: y }
+  writeSettings(settings)
+  return settings
+}
+
 function normalizeItem(item) {
   return {
     ...item,
@@ -364,6 +379,8 @@ module.exports = {
   setMaxPinnedItems,
   setPasteShortcutKey,
   setShowPinnedBar,
+  getPinnedWindowPosition,
+  setPinnedWindowPosition,
   getItemsForRenderer,
   getPinnedItemsForRenderer,
   getItemById,
