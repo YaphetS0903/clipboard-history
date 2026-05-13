@@ -2,6 +2,9 @@ const { app, BrowserWindow, ipcMain, clipboard, nativeImage, screen, Menu, Tray,
 const path = require('path')
 const fs = require('fs')
 const os = require('os')
+
+// 设置 App User Model ID，防止任务栏出现多个图标
+app.setAppUserModelId('com.clipboard.history')
 const {
   ensureDataFiles,
   getItemsForRenderer,
