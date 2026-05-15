@@ -69,7 +69,6 @@ function startClipboardMonitor(onChange) {
       const entry = readClipboardEntry()
 
       if (!entry) {
-        lastSignature = ''
         return
       }
 

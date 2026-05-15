@@ -198,7 +198,9 @@ function MainApp() {
 
   useEffect(() => {
     loadItems('')
+  }, [])
 
+  useEffect(() => {
     const removeListener = window.electronAPI.onHistoryUpdated(() => {
       loadItems(query)
     })
@@ -206,7 +208,7 @@ function MainApp() {
     return () => {
       removeListener()
     }
-  }, [])
+  }, [query])
 
   useEffect(() => {
     const timer = setTimeout(() => {

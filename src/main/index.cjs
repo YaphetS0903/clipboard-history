@@ -2,6 +2,7 @@ const { app, BrowserWindow, ipcMain, clipboard, nativeImage, screen, Menu, Tray,
 const path = require('path')
 const fs = require('fs')
 const os = require('os')
+const { exec } = require('child_process')
 
 // 设置 App User Model ID，防止任务栏出现多个图标
 app.setAppUserModelId('com.clipboard.history')
@@ -337,6 +338,12 @@ function createInputDialog(title, message, defaultValue, inputType, callback) {
     ? 'type="number" min="1" max="50"'
     : 'type="text" maxlength="1" style="text-transform: uppercase;"'
 
+  const escapedDefault = String(defaultValue)
+    .replace(/&/g, '&amp;')
+    .replace(/"/g, '&quot;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+
   const html = `
     <!DOCTYPE html>
     <html>
@@ -400,7 +407,7 @@ function createInputDialog(title, message, defaultValue, inputType, callback) {
     </head>
     <body>
       <p>${message}</p>
-      <input ${inputAttrs} id="input" value="${defaultValue}" />
+      <input ${inputAttrs} id="input" value="${escapedDefault}" />
       <div class="buttons">
         <button class="btn-cancel" id="cancelBtn">取消</button>
         <button class="btn-confirm" id="confirmBtn">确定</button>
@@ -670,7 +677,15 @@ function registerGlobalShortcut() {
 
   // Ctrl+Shift+V 显示/隐藏主窗口
   const result1 = globalShortcut.register('CommandOrControl+Shift+V', () => {
-    showMainWindow()
+    if (mainWindow && !mainWindow.isDestroyed()) {
+      if (mainWindow.isVisible()) {
+        mainWindow.hide()
+      } else {
+        showMainWindow()
+      }
+    } else {
+      showMainWindow()
+    }
   })
 
   if (!result1) {
@@ -746,6 +761,15 @@ function copyLatestItem() {
       clipboard.writeText(fullItem.text)
       setIgnoredClipboardSignature(fullItem.signature)
     }
+  }
+
+  // 模拟 Ctrl+V 粘贴到当前活动窗口
+  if (process.platform === 'win32') {
+    exec('powershell -NoProfile -Command "Add-Type -AssemblyName System.Windows.Forms; [System.Windows.Forms.SendKeys]::SendWait(\'^v\')"', (err) => {
+      if (err) {
+        logMain(`paste simulation failed: ${err.message}`)
+      }
+    })
   }
 
   // 移动到下一条

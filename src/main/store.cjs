@@ -349,7 +349,7 @@ function itemToRenderer(item) {
 
 function getItemsForRenderer(query = '') {
   const normalizedQuery = String(query).trim().toLowerCase()
-  const items = cleanupExpired()
+  const items = getItems()
 
   const filteredItems = normalizedQuery
     ? items.filter(item => item.type === 'text' && item.text.toLowerCase().includes(normalizedQuery))
@@ -359,7 +359,7 @@ function getItemsForRenderer(query = '') {
 }
 
 function getPinnedItemsForRenderer() {
-  return cleanupExpired()
+  return getItems()
     .filter(item => item.pinned)
     .map(itemToRenderer)
 }
