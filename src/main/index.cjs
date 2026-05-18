@@ -540,7 +540,7 @@ function createPinnedWindow() {
     alwaysOnTop: true,
     focusable: true,
     backgroundColor: '#00000000',
-    title: '置顶内容',
+    title: '历史粘贴板',
     webPreferences: {
       nodeIntegration: false,
       contextIsolation: true,
@@ -567,7 +567,10 @@ function createPinnedWindow() {
   })
 
   pinnedWindow.setAlwaysOnTop(true, 'screen-saver')
-  pinnedWindow.setVisibleOnAllWorkspaces(true)
+  // setVisibleOnAllWorkspaces 是 macOS API，在 Windows 上无实际作用且可能干扰 skipTaskbar
+  // pinnedWindow.setVisibleOnAllWorkspaces(true)
+  // setAlwaysOnTop 可能重置 skipTaskbar 状态，需要再次确保不显示在任务栏
+  pinnedWindow.setSkipTaskbar(true)
 
   // 开发环境加载本地服务器，生产环境加载打包后的文件
   if (!app.isPackaged) {
@@ -622,6 +625,8 @@ function ensurePinnedWindowVisibility() {
   clampPinnedWindowToTop(windowInstance)
   if (!windowInstance.isVisible()) {
     windowInstance.showInactive()
+    // showInactive 可能重置 skipTaskbar，再次确保不显示在任务栏
+    windowInstance.setSkipTaskbar(true)
   }
 }
 
