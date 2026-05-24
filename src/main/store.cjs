@@ -72,12 +72,19 @@ function normalizeSettings(raw) {
     : 'Q'
   const showPinnedBar = typeof raw.showPinnedBar === 'boolean' ? raw.showPinnedBar : true
 
-  return {
+  const result = {
     retentionDays,
     maxPinnedItems,
     pasteShortcutKey,
     showPinnedBar,
   }
+
+  if (Number.isFinite(raw.pinnedWindowX) && Number.isFinite(raw.pinnedWindowY)) {
+    result.pinnedWindowX = raw.pinnedWindowX
+    result.pinnedWindowY = raw.pinnedWindowY
+  }
+
+  return result
 }
 
 function getSettings() {
@@ -294,7 +301,7 @@ function cleanupExpired() {
   for (const item of items) {
     const createdAt = new Date(item.createdAt).getTime()
 
-    if (createdAt >= cutoffTime) {
+    if (createdAt >= cutoffTime || item.pinned) {
       activeItems.push(item)
       continue
     }
@@ -352,7 +359,7 @@ function getItemsForRenderer(query = '') {
   const items = getItems()
 
   const filteredItems = normalizedQuery
-    ? items.filter(item => item.type === 'text' && item.text.toLowerCase().includes(normalizedQuery))
+    ? items.filter(item => item.type === 'image' || (item.type === 'text' && item.text.toLowerCase().includes(normalizedQuery)))
     : items
 
   return filteredItems.map(itemToRenderer)

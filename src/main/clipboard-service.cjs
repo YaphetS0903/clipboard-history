@@ -13,9 +13,21 @@ let ignoredSignature = ''
 let tickCount = 0
 
 function readClipboardEntry() {
+  const text = clipboard.readText()
   const image = clipboard.readImage()
+  const hasText = text && text.trim()
+  const hasImage = !image.isEmpty()
 
-  if (!image.isEmpty()) {
+  // 同时有文字和图片时优先保存文字（更实用、可搜索）
+  if (hasText) {
+    return {
+      type: 'text',
+      signature: buildTextSignature(text),
+      text,
+    }
+  }
+
+  if (hasImage) {
     const buffer = image.toPNG()
 
     if (buffer.length > 0) {
@@ -24,16 +36,6 @@ function readClipboardEntry() {
         signature: buildImageSignature(buffer),
         buffer,
       }
-    }
-  }
-
-  const text = clipboard.readText()
-
-  if (text && text.trim()) {
-    return {
-      type: 'text',
-      signature: buildTextSignature(text),
-      text,
     }
   }
 

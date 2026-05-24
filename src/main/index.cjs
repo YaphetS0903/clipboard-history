@@ -34,6 +34,7 @@ let isPinnedWindowDragging = false
 let tray = null
 let inputDialogCallback = null
 let pasteIndex = 0 // 粘贴快捷键的索引
+let pasteResetTimer = null
 let isQuitting = false
 
 function logMain(message) {
@@ -96,12 +97,14 @@ function clampPinnedWindowToTop(windowInstance) {
       Math.max(bounds.x, workArea.x),
       workArea.x + workArea.width - size.width,
     )
+    const nextY = workArea.y + 6
     windowInstance.setBounds({
       x: nextX,
-      y: workArea.y + 6,
+      y: nextY,
       width: size.width,
       height: size.height,
     })
+    setPinnedWindowPosition(nextX, nextY)
   } else {
     // 展开态：可以自由移动，但不超出屏幕
     const nextX = Math.min(
@@ -118,10 +121,8 @@ function clampPinnedWindowToTop(windowInstance) {
       width: size.width,
       height: size.height,
     })
+    setPinnedWindowPosition(nextX, nextY)
   }
-
-  // 保存置顶条位置
-  setPinnedWindowPosition(bounds.x, bounds.y)
 }
 
 function sendHistoryUpdate() {
@@ -777,8 +778,15 @@ function copyLatestItem() {
     })
   }
 
-  // 移动到下一条
+  // 移动到下一条，3秒无操作后重置
   pasteIndex++
+  if (pasteResetTimer) {
+    clearTimeout(pasteResetTimer)
+  }
+  pasteResetTimer = setTimeout(() => {
+    pasteIndex = 0
+    pasteResetTimer = null
+  }, 3000)
 }
 
 app.disableHardwareAcceleration()
