@@ -82,6 +82,32 @@ function getPinnedWindowSize() {
     : { width: 88, height: 18 }
 }
 
+function keepPinnedWindowOutOfTaskbar(windowInstance = pinnedWindow) {
+  if (!windowInstance || windowInstance.isDestroyed()) {
+    return
+  }
+
+  try {
+    windowInstance.setSkipTaskbar(true)
+  } catch {
+    // ignore transient native-window state during create/show
+  }
+
+  try {
+    windowInstance.setAlwaysOnTop(true, 'screen-saver')
+  } catch {
+    // ignore transient native-window state during create/show
+  }
+}
+
+function schedulePinnedWindowTaskbarProtection(windowInstance = pinnedWindow) {
+  keepPinnedWindowOutOfTaskbar(windowInstance)
+
+  for (const delay of [0, 100, 500]) {
+    setTimeout(() => keepPinnedWindowOutOfTaskbar(windowInstance), delay)
+  }
+}
+
 function clampPinnedWindowToTop(windowInstance) {
   if (!windowInstance || windowInstance.isDestroyed() || isPinnedWindowDragging) {
     return
@@ -132,7 +158,13 @@ function sendHistoryUpdate() {
 
   if (pinnedWindow && !pinnedWindow.isDestroyed()) {
     pinnedWindow.webContents.send('pinned-history-updated')
+    schedulePinnedWindowTaskbarProtection(pinnedWindow)
   }
+}
+
+function handleClipboardHistoryChanged() {
+  ensurePinnedWindowVisibility()
+  sendHistoryUpdate()
 }
 
 function showMainWindow() {
@@ -530,6 +562,7 @@ function createPinnedWindow() {
 
   pinnedWindow = new BrowserWindow({
     ...getPinnedWindowBounds(),
+    show: false,
     frame: false,
     resizable: false,
     movable: true,
@@ -539,7 +572,7 @@ function createPinnedWindow() {
     transparent: true,
     hasShadow: false,
     alwaysOnTop: true,
-    focusable: true,
+    focusable: process.platform === 'win32' ? false : true,
     backgroundColor: '#00000000',
     title: '历史粘贴板',
     webPreferences: {
@@ -557,10 +590,12 @@ function createPinnedWindow() {
     if (!pinnedWindowExpanded) {
       pinnedWindow.setSize(88, 18)
     }
+    schedulePinnedWindowTaskbarProtection(pinnedWindow)
   })
 
   pinnedWindow.webContents.on('did-finish-load', () => {
     logMain('pinned window did-finish-load')
+    schedulePinnedWindowTaskbarProtection(pinnedWindow)
   })
 
   pinnedWindow.webContents.on('did-fail-load', (_event, errorCode, errorDescription, validatedURL) => {
@@ -572,6 +607,7 @@ function createPinnedWindow() {
   // pinnedWindow.setVisibleOnAllWorkspaces(true)
   // setAlwaysOnTop 可能重置 skipTaskbar 状态，需要再次确保不显示在任务栏
   pinnedWindow.setSkipTaskbar(true)
+  schedulePinnedWindowTaskbarProtection(pinnedWindow)
 
   // 开发环境加载本地服务器，生产环境加载打包后的文件
   if (!app.isPackaged) {
@@ -589,7 +625,12 @@ function createPinnedWindow() {
   pinnedWindow.on('moved', () => {
     isPinnedWindowDragging = false
     clampPinnedWindowToTop(pinnedWindow)
+    schedulePinnedWindowTaskbarProtection(pinnedWindow)
   })
+
+  pinnedWindow.on('show', () => schedulePinnedWindowTaskbarProtection(pinnedWindow))
+  pinnedWindow.on('restore', () => schedulePinnedWindowTaskbarProtection(pinnedWindow))
+  pinnedWindow.on('focus', () => schedulePinnedWindowTaskbarProtection(pinnedWindow))
 
   pinnedWindow.on('closed', () => {
     logMain('pinned window closed')
@@ -627,7 +668,9 @@ function ensurePinnedWindowVisibility() {
   if (!windowInstance.isVisible()) {
     windowInstance.showInactive()
     // showInactive 可能重置 skipTaskbar，再次确保不显示在任务栏
-    windowInstance.setSkipTaskbar(true)
+    schedulePinnedWindowTaskbarProtection(windowInstance)
+  } else {
+    schedulePinnedWindowTaskbarProtection(windowInstance)
   }
 }
 
@@ -818,7 +861,7 @@ app.whenReady().then(() => {
     logMain('buildApplicationMenu done')
     createMainWindow()
     logMain('createMainWindow done')
-    startClipboardMonitor(sendHistoryUpdate)
+    startClipboardMonitor(handleClipboardHistoryChanged)
     logMain('startClipboardMonitor done')
     ensurePinnedWindowVisibility()
     logMain('ensurePinnedWindowVisibility done')
@@ -908,6 +951,7 @@ ipcMain.handle('pinnedWindow:setExpanded', async (_event, expanded) => {
   pinnedWindowExpanded = Boolean(expanded)
   const windowInstance = createPinnedWindow()
   clampPinnedWindowToTop(windowInstance)
+  schedulePinnedWindowTaskbarProtection(windowInstance)
   return { expanded: pinnedWindowExpanded }
 })
 
