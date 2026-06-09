@@ -17,6 +17,7 @@ const {
   setMaxPinnedItems,
   setPasteShortcutKey,
   setShowPinnedBar,
+  setPinnedBarTheme,
   togglePinned,
   getPinnedWindowPosition,
   setPinnedWindowPosition,
@@ -32,10 +33,19 @@ let pinnedWindow = null
 let pinnedWindowExpanded = false
 let isPinnedWindowDragging = false
 let tray = null
+let refreshTrayMenu = null
 let inputDialogCallback = null
 let pasteIndex = 0 // 粘贴快捷键的索引
 let pasteResetTimer = null
 let isQuitting = false
+
+const pinnedBarThemeOptions = [
+  { id: 'sky', label: '天空蓝' },
+  { id: 'mint', label: '薄荷绿' },
+  { id: 'sunset', label: '日落橙' },
+  { id: 'violet', label: '紫罗兰' },
+  { id: 'graphite', label: '石墨灰' },
+]
 
 function logMain(message) {
   try {
@@ -162,9 +172,37 @@ function sendHistoryUpdate() {
   }
 }
 
+function sendSettingsUpdate() {
+  const settings = getSettings()
+
+  if (mainWindow && !mainWindow.isDestroyed()) {
+    mainWindow.webContents.send('settings-updated', settings)
+  }
+
+  if (pinnedWindow && !pinnedWindow.isDestroyed()) {
+    pinnedWindow.webContents.send('settings-updated', settings)
+    schedulePinnedWindowTaskbarProtection(pinnedWindow)
+  }
+}
+
 function handleClipboardHistoryChanged() {
   ensurePinnedWindowVisibility()
   sendHistoryUpdate()
+}
+
+function buildPinnedBarThemeMenu(onAfterChange) {
+  const settings = getSettings()
+  return pinnedBarThemeOptions.map(option => ({
+    label: option.label,
+    type: 'radio',
+    checked: settings.pinnedBarTheme === option.id,
+    click: () => {
+      updatePinnedBarTheme(option.id)
+      if (typeof onAfterChange === 'function') {
+        onAfterChange()
+      }
+    },
+  }))
 }
 
 function showMainWindow() {
@@ -261,6 +299,10 @@ function buildApplicationMenu() {
           click: () => showMaxPinnedItemsDialog(),
         },
         {
+          label: '置顶条主题',
+          submenu: buildPinnedBarThemeMenu(),
+        },
+        {
           label: '粘贴快捷键...',
           click: () => showPasteShortcutDialog(),
         },
@@ -302,6 +344,15 @@ function updateRetentionDays(days) {
   setRetentionDays(days)
   buildApplicationMenu()
   sendHistoryUpdate()
+}
+
+function updatePinnedBarTheme(theme) {
+  setPinnedBarTheme(theme)
+  buildApplicationMenu()
+  if (typeof refreshTrayMenu === 'function') {
+    refreshTrayMenu()
+  }
+  sendSettingsUpdate()
 }
 
 function showMaxPinnedItemsDialog() {
@@ -702,6 +753,10 @@ function createTray() {
           updateTrayMenu()
         },
       },
+      {
+        label: '置顶条主题',
+        submenu: buildPinnedBarThemeMenu(updateTrayMenu),
+      },
       { type: 'separator' },
       { label: '退出', click: () => {
         if (mainWindow && !mainWindow.isDestroyed()) {
@@ -714,6 +769,7 @@ function createTray() {
   }
 
   tray.setToolTip('历史粘贴板')
+  refreshTrayMenu = updateTrayMenu
   updateTrayMenu()
 
   // 点击托盘图标显示主窗口
@@ -969,6 +1025,13 @@ ipcMain.handle('settings:setMaxPinnedItems', async (_event, maxPinnedItems) => {
   const settings = setMaxPinnedItems(maxPinnedItems)
   ensurePinnedWindowVisibility()
   sendHistoryUpdate()
+  return settings
+})
+
+ipcMain.handle('settings:setPinnedBarTheme', async (_event, theme) => {
+  const settings = setPinnedBarTheme(theme)
+  buildApplicationMenu()
+  sendSettingsUpdate()
   return settings
 })
 

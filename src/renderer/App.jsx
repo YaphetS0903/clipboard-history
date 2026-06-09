@@ -89,17 +89,40 @@ function ImageCard({ item, onCopy, onDelete, onTogglePinned }) {
 function PinnedOverlay() {
   const [items, setItems] = useState([])
   const [expanded, setExpanded] = useState(false)
+  const [pinnedTheme, setPinnedTheme] = useState('sky')
 
   async function loadPinnedItems() {
     const historyItems = await window.electronAPI.listPinnedHistory()
     setItems(historyItems)
   }
 
+  async function loadSettings() {
+    const settings = await window.electronAPI.getSettings()
+    setPinnedTheme(settings.pinnedBarTheme || 'sky')
+  }
+
   useEffect(() => {
     loadPinnedItems()
+    loadSettings()
 
     const removeListener = window.electronAPI.onPinnedHistoryUpdated(() => {
       loadPinnedItems()
+    })
+
+    return () => removeListener()
+  }, [])
+
+  useEffect(() => {
+    document.body.dataset.pinnedTheme = pinnedTheme
+
+    return () => {
+      delete document.body.dataset.pinnedTheme
+    }
+  }, [pinnedTheme])
+
+  useEffect(() => {
+    const removeListener = window.electronAPI.onSettingsUpdated(settings => {
+      setPinnedTheme(settings.pinnedBarTheme || 'sky')
     })
 
     return () => removeListener()

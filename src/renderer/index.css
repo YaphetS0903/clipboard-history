@@ -19,8 +19,74 @@ body[data-window-role='pinned'] #root {
   background: transparent;
 }
 
+body[data-window-role='pinned'] {
+  --pinned-bar-start: rgba(184, 217, 255, 0.58);
+  --pinned-bar-mid: rgba(160, 200, 255, 0.5);
+  --pinned-bar-end: rgba(184, 217, 255, 0.58);
+  --pinned-handle-start: rgba(184, 217, 255, 0.68);
+  --pinned-handle-mid: rgba(160, 200, 255, 0.6);
+  --pinned-handle-end: rgba(184, 217, 255, 0.68);
+  --pinned-dot: rgba(36, 95, 155, 0.35);
+  --pinned-panel-bg: rgba(255, 255, 255, 0.9);
+  --pinned-panel-border: rgba(215, 230, 251, 0.75);
+  --pinned-panel-shadow: rgba(68, 122, 186, 0.1);
+  --pinned-collapse-color: #4d77a8;
+}
+
+body[data-window-role='pinned'][data-pinned-theme='mint'] {
+  --pinned-bar-start: rgba(155, 236, 205, 0.58);
+  --pinned-bar-mid: rgba(117, 218, 182, 0.5);
+  --pinned-bar-end: rgba(189, 244, 221, 0.58);
+  --pinned-handle-start: rgba(155, 236, 205, 0.68);
+  --pinned-handle-mid: rgba(117, 218, 182, 0.6);
+  --pinned-handle-end: rgba(189, 244, 221, 0.68);
+  --pinned-dot: rgba(16, 119, 91, 0.38);
+  --pinned-panel-border: rgba(181, 236, 218, 0.78);
+  --pinned-panel-shadow: rgba(35, 151, 114, 0.1);
+  --pinned-collapse-color: #2f806a;
+}
+
+body[data-window-role='pinned'][data-pinned-theme='sunset'] {
+  --pinned-bar-start: rgba(255, 193, 128, 0.58);
+  --pinned-bar-mid: rgba(255, 151, 128, 0.5);
+  --pinned-bar-end: rgba(255, 218, 145, 0.58);
+  --pinned-handle-start: rgba(255, 193, 128, 0.68);
+  --pinned-handle-mid: rgba(255, 151, 128, 0.6);
+  --pinned-handle-end: rgba(255, 218, 145, 0.68);
+  --pinned-dot: rgba(162, 76, 43, 0.38);
+  --pinned-panel-border: rgba(250, 214, 177, 0.8);
+  --pinned-panel-shadow: rgba(181, 98, 58, 0.1);
+  --pinned-collapse-color: #9b6542;
+}
+
+body[data-window-role='pinned'][data-pinned-theme='violet'] {
+  --pinned-bar-start: rgba(202, 184, 255, 0.58);
+  --pinned-bar-mid: rgba(181, 153, 245, 0.5);
+  --pinned-bar-end: rgba(221, 204, 255, 0.58);
+  --pinned-handle-start: rgba(202, 184, 255, 0.68);
+  --pinned-handle-mid: rgba(181, 153, 245, 0.6);
+  --pinned-handle-end: rgba(221, 204, 255, 0.68);
+  --pinned-dot: rgba(96, 66, 160, 0.38);
+  --pinned-panel-border: rgba(223, 213, 250, 0.8);
+  --pinned-panel-shadow: rgba(111, 82, 178, 0.1);
+  --pinned-collapse-color: #72599e;
+}
+
+body[data-window-role='pinned'][data-pinned-theme='graphite'] {
+  --pinned-bar-start: rgba(113, 125, 145, 0.62);
+  --pinned-bar-mid: rgba(78, 91, 112, 0.54);
+  --pinned-bar-end: rgba(137, 148, 166, 0.62);
+  --pinned-handle-start: rgba(113, 125, 145, 0.72);
+  --pinned-handle-mid: rgba(78, 91, 112, 0.64);
+  --pinned-handle-end: rgba(137, 148, 166, 0.72);
+  --pinned-dot: rgba(255, 255, 255, 0.48);
+  --pinned-panel-border: rgba(176, 185, 198, 0.66);
+  --pinned-panel-shadow: rgba(20, 28, 42, 0.14);
+  --pinned-collapse-color: #4f5c72;
+}
+
 body[data-window-role='pinned'] .pinned-shell:not(.pinned-shell--expanded) {
-  background: linear-gradient(90deg, rgba(184, 217, 255, 0.58) 0%, rgba(160, 200, 255, 0.5) 50%, rgba(184, 217, 255, 0.58) 100%);
+  background: linear-gradient(90deg, var(--pinned-bar-start) 0%, var(--pinned-bar-mid) 50%, var(--pinned-bar-end) 100%);
   border-radius: 999px;
   overflow: hidden;
 }
@@ -292,15 +358,15 @@ img {
   padding: 0;
   border: none;
   box-shadow: none;
-  background: linear-gradient(90deg, rgba(184, 217, 255, 0.58) 0%, rgba(160, 200, 255, 0.5) 50%, rgba(184, 217, 255, 0.58) 100%);
+  background: linear-gradient(90deg, var(--pinned-bar-start) 0%, var(--pinned-bar-mid) 50%, var(--pinned-bar-end) 100%);
   border-radius: 999px;
 }
 
 .pinned-shell--expanded {
   padding: 6px;
-  border: 1px solid rgba(215, 230, 251, 0.75);
-  background: rgba(255, 255, 255, 0.9);
-  box-shadow: 0 10px 30px rgba(68, 122, 186, 0.1);
+  border: 1px solid var(--pinned-panel-border);
+  background: var(--pinned-panel-bg);
+  box-shadow: 0 10px 30px var(--pinned-panel-shadow);
   border-radius: 14px;
 }
 
@@ -320,7 +386,7 @@ img {
 .pinned-handle--expanded {
   height: 18px;
   flex-shrink: 0;
-  background: linear-gradient(90deg, rgba(184, 217, 255, 0.68) 0%, rgba(160, 200, 255, 0.6) 50%, rgba(184, 217, 255, 0.68) 100%);
+  background: linear-gradient(90deg, var(--pinned-handle-start) 0%, var(--pinned-handle-mid) 50%, var(--pinned-handle-end) 100%);
   box-shadow: 0 2px 8px rgba(100, 160, 220, 0.18);
   cursor: default;
 }
@@ -351,14 +417,14 @@ img {
   min-width: 44px;
   height: 14px;
   font-size: 11px;
-  color: #4d77a8;
+  color: var(--pinned-collapse-color);
 }
 
 .pinned-handle__dot {
   width: 26px;
   height: 4px;
   border-radius: 999px;
-  background: rgba(36, 95, 155, 0.35);
+  background: var(--pinned-dot);
   display: inline-block;
 }
 

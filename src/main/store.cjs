@@ -27,6 +27,7 @@ function getSettingsFile() {
   return path.join(getDataDir(), 'settings.json')
 }
 const validRetentionDays = new Set([1, 3, 5])
+const validPinnedBarThemes = new Set(['sky', 'mint', 'sunset', 'violet', 'graphite'])
 
 function ensureDataFiles() {
   const imagesDir = getImagesDir()
@@ -71,12 +72,14 @@ function normalizeSettings(raw) {
     ? raw.pasteShortcutKey.toUpperCase()
     : 'Q'
   const showPinnedBar = typeof raw.showPinnedBar === 'boolean' ? raw.showPinnedBar : true
+  const pinnedBarTheme = validPinnedBarThemes.has(raw.pinnedBarTheme) ? raw.pinnedBarTheme : 'sky'
 
   const result = {
     retentionDays,
     maxPinnedItems,
     pasteShortcutKey,
     showPinnedBar,
+    pinnedBarTheme,
   }
 
   if (Number.isFinite(raw.pinnedWindowX) && Number.isFinite(raw.pinnedWindowY)) {
@@ -122,6 +125,14 @@ function setPasteShortcutKey(key) {
 function setShowPinnedBar(show) {
   ensureDataFiles()
   const settings = { ...getSettings(), showPinnedBar: Boolean(show) }
+  writeSettings(settings)
+  return getSettings()
+}
+
+function setPinnedBarTheme(theme) {
+  ensureDataFiles()
+  const pinnedBarTheme = validPinnedBarThemes.has(theme) ? theme : 'sky'
+  const settings = { ...getSettings(), pinnedBarTheme }
   writeSettings(settings)
   return getSettings()
 }
@@ -386,6 +397,7 @@ module.exports = {
   setMaxPinnedItems,
   setPasteShortcutKey,
   setShowPinnedBar,
+  setPinnedBarTheme,
   getPinnedWindowPosition,
   setPinnedWindowPosition,
   getItemsForRenderer,

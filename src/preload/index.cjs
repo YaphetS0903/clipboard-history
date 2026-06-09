@@ -9,6 +9,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
   getSettings: () => ipcRenderer.invoke('settings:get'),
   setRetentionDays: retentionDays => ipcRenderer.invoke('settings:setRetentionDays', retentionDays),
   setMaxPinnedItems: maxPinnedItems => ipcRenderer.invoke('settings:setMaxPinnedItems', maxPinnedItems),
+  setPinnedBarTheme: theme => ipcRenderer.invoke('settings:setPinnedBarTheme', theme),
   setPinnedWindowExpanded: expanded => ipcRenderer.invoke('pinnedWindow:setExpanded', expanded),
   sendInputDialogValue: value => ipcRenderer.send('input-dialog-value', value),
   getWindowRole: () => {
@@ -24,5 +25,10 @@ contextBridge.exposeInMainWorld('electronAPI', {
     const listener = () => callback()
     ipcRenderer.on('pinned-history-updated', listener)
     return () => ipcRenderer.removeListener('pinned-history-updated', listener)
+  },
+  onSettingsUpdated: callback => {
+    const listener = (_event, settings) => callback(settings)
+    ipcRenderer.on('settings-updated', listener)
+    return () => ipcRenderer.removeListener('settings-updated', listener)
   },
 })
