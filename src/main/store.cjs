@@ -28,6 +28,27 @@ function getSettingsFile() {
 }
 const validRetentionDays = new Set([1, 3, 5])
 const validPinnedBarThemes = new Set(['sky', 'mint', 'sunset', 'violet', 'graphite'])
+const lowValuePhrases = new Set([
+  '嗯',
+  '哦',
+  '啊',
+  '哈',
+  '哈哈',
+  '呵呵',
+  '好的',
+  '好',
+  '是',
+  '不是',
+  'ok',
+  'okay',
+  'yes',
+  'no',
+  'hi',
+  'hello',
+  'test',
+])
+const chineseSearchStopWords = new Set(['帮我', '帮', '我', '找', '查', '搜索', '关于', '的', '内容', '文章', '复制', '过', '剪贴', '剪贴板', '历史'])
+const englishSearchStopWords = new Set(['find', 'search', 'about', 'the', 'a', 'an', 'of', 'for', 'to', 'in', 'on', 'clipboard', 'copied', 'history'])
 
 function ensureDataFiles() {
   const imagesDir = getImagesDir()
@@ -61,6 +82,166 @@ function writeJson(filePath, value) {
 
 function sortNewestFirst(items) {
   return items.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
+}
+
+function normalizeTextForCompare(text) {
+  return String(text || '')
+    .trim()
+    .toLowerCase()
+    .replace(/\s+/g, ' ')
+}
+
+function classifyTextContent(text) {
+  const value = String(text || '').trim()
+
+  if (/^https?:\/\/\S+$/i.test(value) || /^www\.\S+$/i.test(value)) {
+    return 'link'
+  }
+
+  if (
+    /^#{1,6}\s/m.test(value) ||
+    /```[\s\S]*```/.test(value) ||
+    /^\s*[-*+]\s+\S+/m.test(value) ||
+    /^\s*\d+\.\s+\S+/m.test(value) ||
+    /\[[^\]]+\]\([^)]+\)/.test(value) ||
+    /\|.+\|[\r\n]+\|[-:\s|]+\|/.test(value)
+  ) {
+    return 'markdown'
+  }
+
+  return 'text'
+}
+
+function getContentText(item) {
+  return item && item.type === 'text' ? String(item.text || '') : ''
+}
+
+function getItemContentType(item) {
+  if (!item) {
+    return 'text'
+  }
+
+  if (item.type === 'image') {
+    return 'image'
+  }
+
+  return item.contentType || classifyTextContent(item.text)
+}
+
+function getInformationScore(text) {
+  const value = String(text || '').trim()
+  const compact = value.replace(/\s+/g, '')
+
+  if (!compact) {
+    return 0
+  }
+
+  let score = Math.min(compact.length, 120)
+  const uniqueChars = new Set(compact).size
+  score += Math.min(uniqueChars * 2, 40)
+
+  if (/https?:\/\/|www\./i.test(value)) score += 35
+  if (/[\u4e00-\u9fa5]{8,}/.test(value)) score += 18
+  if (/[A-Za-z]{8,}/.test(value)) score += 12
+  if (/[。！？；：,.!?;:]/.test(value)) score += 10
+  if (/```|^#{1,6}\s|^\s*[-*+]\s+/m.test(value)) score += 18
+
+  return score
+}
+
+function shouldIgnoreTextContent(text) {
+  const value = String(text || '').trim()
+  const compact = value.replace(/\s+/g, '')
+  const normalized = normalizeTextForCompare(value)
+
+  if (!compact) {
+    return true
+  }
+
+  if (classifyTextContent(value) === 'link') {
+    return false
+  }
+
+  if (lowValuePhrases.has(normalized)) {
+    return true
+  }
+
+  if (compact.length <= 1) {
+    return true
+  }
+
+  if (compact.length <= 3 && !/[A-Za-z0-9]{3,}|[\u4e00-\u9fa5]{3,}/.test(compact)) {
+    return true
+  }
+
+  if (/^([\p{P}\p{S}\dA-Za-z\u4e00-\u9fa5])\1{2,}$/u.test(compact)) {
+    return true
+  }
+
+  if (!/[\p{L}\p{N}]/u.test(compact)) {
+    return true
+  }
+
+  return getInformationScore(value) < 14
+}
+
+function tokenizeSearchQuery(query) {
+  const normalized = String(query || '').trim().toLowerCase()
+  const englishTokens = normalized
+    .match(/[a-z0-9][a-z0-9-_.]{1,}/g) || []
+  const cjkTokens = normalized
+    .replace(/[a-z0-9][a-z0-9-_.]{1,}/g, ' ')
+    .split(/[\s，。！？、,.!?;:：；"'“”‘’（）()[\]{}<>]+/)
+    .map(token => token.trim())
+    .filter(token => token.length >= 2)
+
+  return [...englishTokens, ...cjkTokens]
+    .map(token => token.replace(/^(找|查|搜|关于)/, ''))
+    .filter(token => token && !englishSearchStopWords.has(token) && !chineseSearchStopWords.has(token))
+}
+
+function parseSearchIntent(query) {
+  const normalized = String(query || '').trim().toLowerCase()
+  const now = Date.now()
+  let from = null
+  let to = null
+  let contentType = null
+
+  if (/今天|today/.test(normalized)) {
+    const date = new Date()
+    date.setHours(0, 0, 0, 0)
+    from = date.getTime()
+  } else if (/昨天|yesterday/.test(normalized)) {
+    const date = new Date()
+    date.setHours(0, 0, 0, 0)
+    to = date.getTime()
+    from = to - 24 * 60 * 60 * 1000
+  } else if (/上周|last\s+week/.test(normalized)) {
+    const date = new Date()
+    date.setHours(0, 0, 0, 0)
+    to = date.getTime() - 7 * 24 * 60 * 60 * 1000
+    from = to - 7 * 24 * 60 * 60 * 1000
+  } else if (/最近|近一周|这周|本周|last\s+7\s+days|this\s+week/.test(normalized)) {
+    from = now - 7 * 24 * 60 * 60 * 1000
+  }
+
+  if (/图片|图像|截图|image|photo|screenshot/.test(normalized)) {
+    contentType = 'image'
+  } else if (/链接|网址|网页|url|link/.test(normalized)) {
+    contentType = 'link'
+  } else if (/markdown|md|文档|笔记/.test(normalized)) {
+    contentType = 'markdown'
+  } else if (/文本|文字|text/.test(normalized)) {
+    contentType = 'text'
+  }
+
+  return {
+    raw: normalized,
+    tokens: tokenizeSearchQuery(normalized),
+    from,
+    to,
+    contentType,
+  }
 }
 
 function normalizeSettings(raw) {
@@ -153,9 +334,12 @@ function setPinnedWindowPosition(x, y) {
 }
 
 function normalizeItem(item) {
+  const contentType = item.contentType || getItemContentType(item)
+
   return {
     ...item,
     pinned: Boolean(item.pinned),
+    contentType,
   }
 }
 
@@ -217,13 +401,14 @@ function addTextItem(text, signature) {
   ensureDataFiles()
 
   const value = typeof text === 'string' ? text : ''
-  if (!value.trim()) {
+  if (!value.trim() || shouldIgnoreTextContent(value)) {
     return null
   }
 
   const item = {
     id: randomUUID(),
     type: 'text',
+    contentType: classifyTextContent(value),
     text: value,
     createdAt: new Date().toISOString(),
     signature,
@@ -244,6 +429,7 @@ function addImageItem(buffer, signature) {
   const item = {
     id: randomUUID(),
     type: 'image',
+    contentType: 'image',
     imagePath: '',
     createdAt: new Date().toISOString(),
     signature,
@@ -350,6 +536,7 @@ function itemToRenderer(item) {
     return {
       id: item.id,
       type: item.type,
+      contentType: getItemContentType(item),
       createdAt: item.createdAt,
       imageDataUrl,
       pinned: Boolean(item.pinned),
@@ -359,19 +546,81 @@ function itemToRenderer(item) {
   return {
     id: item.id,
     type: item.type,
+    contentType: getItemContentType(item),
     text: item.text,
     createdAt: item.createdAt,
     pinned: Boolean(item.pinned),
   }
 }
 
+function scoreSearchItem(item, intent) {
+  const contentType = getItemContentType(item)
+  const text = getContentText(item).toLowerCase()
+  const createdAt = new Date(item.createdAt).getTime()
+  let score = 0
+
+  if (intent.contentType) {
+    if (contentType !== intent.contentType) {
+      return -1
+    }
+    score += 12
+  }
+
+  if (intent.from && createdAt < intent.from) {
+    return -1
+  }
+
+  if (intent.to && createdAt >= intent.to) {
+    return -1
+  }
+
+  if (intent.from || intent.to) {
+    score += 8
+  }
+
+  if (!intent.tokens.length) {
+    return score
+  }
+
+  if (item.type === 'image') {
+    return score > 0 ? score : -1
+  }
+
+  for (const token of intent.tokens) {
+    if (text.includes(token)) {
+      score += token.length > 3 ? 10 : 7
+      continue
+    }
+
+    const compactText = text.replace(/\s+/g, '')
+    if (compactText.includes(token.replace(/\s+/g, ''))) {
+      score += 5
+    }
+  }
+
+  return score > 0 ? score : -1
+}
+
+function searchItems(items, query) {
+  const intent = parseSearchIntent(query)
+
+  return items
+    .map((item, index) => ({ item, index, score: scoreSearchItem(item, intent) }))
+    .filter(entry => entry.score >= 0)
+    .sort((a, b) => {
+      if (b.score !== a.score) {
+        return b.score - a.score
+      }
+      return a.index - b.index
+    })
+    .map(entry => entry.item)
+}
+
 function getItemsForRenderer(query = '') {
-  const normalizedQuery = String(query).trim().toLowerCase()
+  const normalizedQuery = String(query).trim()
   const items = getItems()
 
-  const filteredItems = normalizedQuery
-    ? items.filter(item => item.type === 'image' || (item.type === 'text' && item.text.toLowerCase().includes(normalizedQuery)))
-    : items
+  const filteredItems = normalizedQuery ? searchItems(items, normalizedQuery) : items
 
   return filteredItems.map(itemToRenderer)
 }
@@ -380,6 +629,62 @@ function getPinnedItemsForRenderer() {
   return getItems()
     .filter(item => item.pinned)
     .map(itemToRenderer)
+}
+
+function getCleanupSuggestions() {
+  const items = getItems()
+  const seenSignatures = new Map()
+  const seenText = new Map()
+  const suggestions = []
+
+  for (const item of items) {
+    if (item.pinned) {
+      continue
+    }
+
+    const reasons = []
+
+    if (item.type === 'text') {
+      if (shouldIgnoreTextContent(item.text)) {
+        reasons.push('低信息密度')
+      }
+
+      const normalizedText = normalizeTextForCompare(item.text)
+      if (normalizedText && seenText.has(normalizedText)) {
+        reasons.push('重复文本')
+      } else if (normalizedText) {
+        seenText.set(normalizedText, item.id)
+      }
+    }
+
+    if (item.signature && seenSignatures.has(item.signature)) {
+      reasons.push('重复内容')
+    } else if (item.signature) {
+      seenSignatures.set(item.signature, item.id)
+    }
+
+    if (reasons.length) {
+      suggestions.push({
+        ...itemToRenderer(item),
+        reasons,
+      })
+    }
+  }
+
+  return suggestions
+}
+
+function deleteItems(ids) {
+  const idSet = new Set(Array.isArray(ids) ? ids : [])
+  let deletedCount = 0
+
+  for (const id of idSet) {
+    if (deleteItem(id)) {
+      deletedCount += 1
+    }
+  }
+
+  return deletedCount
 }
 
 function buildTextSignature(text) {
@@ -407,7 +712,9 @@ module.exports = {
   addImageItem,
   togglePinned,
   deleteItem,
+  deleteItems,
   cleanupExpired,
+  getCleanupSuggestions,
   buildTextSignature,
   buildImageSignature,
 }

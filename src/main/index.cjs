@@ -12,6 +12,8 @@ const {
   getPinnedItemsForRenderer,
   getItemById,
   deleteItem,
+  deleteItems,
+  getCleanupSuggestions,
   getSettings,
   setRetentionDays,
   setMaxPinnedItems,
@@ -978,6 +980,21 @@ ipcMain.handle('history:delete', async (_event, id) => {
   }
 
   return { deleted }
+})
+
+ipcMain.handle('history:cleanupSuggestions', async () => {
+  return getCleanupSuggestions()
+})
+
+ipcMain.handle('history:deleteMany', async (_event, ids) => {
+  const deletedCount = deleteItems(ids)
+
+  if (deletedCount > 0) {
+    ensurePinnedWindowVisibility()
+    sendHistoryUpdate()
+  }
+
+  return { deletedCount }
 })
 
 ipcMain.handle('history:copy', async (_event, id) => {

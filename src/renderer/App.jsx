@@ -10,19 +10,39 @@ function formatTime(value) {
   }).format(date)
 }
 
-function TextCard({ item, onCopy, onDelete, onTogglePinned }) {
+const contentTypeLabels = {
+  text: '文本',
+  image: '图片',
+  link: '链接',
+  markdown: 'Markdown',
+}
+
+function getContentTypeLabel(item) {
+  return contentTypeLabels[item.contentType || item.type] || '内容'
+}
+
+function TextCard({ item, onCopy, onDelete, onTogglePinned, onAiAction }) {
   const preview = item.text.length > 160 ? `${item.text.slice(0, 160)}...` : item.text
 
   return (
     <button className="item-card text-left" onClick={() => onCopy(item.id)}>
       <div className="item-card__header">
-        <span className="item-badge">文字</span>
+        <span className="item-badge">{getContentTypeLabel(item)}</span>
         <span className="item-time">{formatTime(item.createdAt)}</span>
       </div>
       <div className="item-text">{preview}</div>
       <div className="item-actions">
         <span className="item-hint">点击可再次复制</span>
         <div className="action-group">
+          <button
+            className="ai-button"
+            onClick={event => {
+              event.stopPropagation()
+              onAiAction(item, 'summarize')
+            }}
+          >
+            AI 总结
+          </button>
           <button
             className={item.pinned ? 'pin-button pin-button--active' : 'pin-button'}
             onClick={event => {
@@ -51,7 +71,7 @@ function ImageCard({ item, onCopy, onDelete, onTogglePinned }) {
   return (
     <button className="item-card text-left" onClick={() => onCopy(item.id)}>
       <div className="item-card__header">
-        <span className="item-badge">图片</span>
+        <span className="item-badge">{getContentTypeLabel(item)}</span>
         <span className="item-time">{formatTime(item.createdAt)}</span>
       </div>
       {item.imageDataUrl ? (
@@ -210,6 +230,8 @@ function MainApp() {
   const [query, setQuery] = useState('')
   const [loading, setLoading] = useState(true)
   const [statusText, setStatusText] = useState('正在监听剪贴板，复制后会自动置顶...')
+  const [cleanupSuggestions, setCleanupSuggestions] = useState([])
+  const [aiPanel, setAiPanel] = useState(null)
 
   const hasKeyword = useMemo(() => query.trim().length > 0, [query])
 
@@ -217,6 +239,12 @@ function MainApp() {
     const historyItems = await window.electronAPI.listHistory(nextQuery)
     setItems(historyItems)
     setLoading(false)
+  }
+
+  async function loadCleanupSuggestions() {
+    const suggestions = await window.electronAPI.listCleanupSuggestions()
+    setCleanupSuggestions(suggestions)
+    setStatusText(suggestions.length ? `发现 ${suggestions.length} 条可清理内容` : '剪贴库状态很干净')
   }
 
   useEffect(() => {
@@ -256,6 +284,44 @@ function MainApp() {
     setStatusText(result.pinned ? '已加入桌面置顶' : '已取消桌面置顶')
   }
 
+  async function handleApplyCleanup() {
+    const ids = cleanupSuggestions.map(item => item.id)
+    const result = await window.electronAPI.deleteManyHistoryItems(ids)
+    setCleanupSuggestions([])
+    await loadItems(query)
+    setStatusText(`已清理 ${result.deletedCount} 条内容`)
+  }
+
+  function handleAiAction(item, action) {
+    const text = item.text || ''
+    const titleMap = {
+      summarize: 'AI 总结提示',
+      polish: 'AI 润色提示',
+      translate: 'AI 翻译提示',
+      qa: 'AI 问答提示',
+    }
+    const promptMap = {
+      summarize: `请总结下面这段剪贴板内容，提炼要点并给出下一步可探索的问题：\n\n${text}`,
+      polish: `请润色下面这段文字，保持原意，让表达更清晰自然：\n\n${text}`,
+      translate: `请把下面这段内容翻译成中文和英文，并保留关键术语：\n\n${text}`,
+      qa: `请基于下面这段内容回答我的问题。内容如下：\n\n${text}\n\n我的问题是：`,
+    }
+
+    setAiPanel({
+      title: titleMap[action] || titleMap.summarize,
+      prompt: promptMap[action] || promptMap.summarize,
+    })
+    setStatusText('已生成 AI 处理提示，可复制到任意 AI 工具使用')
+  }
+
+  async function copyAiPrompt() {
+    if (!aiPanel) {
+      return
+    }
+    await navigator.clipboard.writeText(aiPanel.prompt)
+    setStatusText('AI 提示已复制')
+  }
+
   return (
     <div className="app-shell">
       <header className="top-panel">
@@ -270,11 +336,43 @@ function MainApp() {
         <input
           className="search-input"
           type="text"
-          placeholder="搜索历史文字内容..."
+          placeholder="智能搜索：例如“找上周复制过的 agent 文章”“最近的链接”“Markdown 笔记”"
           value={query}
           onChange={event => setQuery(event.target.value)}
         />
+        <div className="smart-toolbar">
+          <button className="ai-button" onClick={loadCleanupSuggestions}>智能清理建议</button>
+          <span className="smart-hint">自动过滤低价值片段，支持文本、链接、Markdown、图片分类</span>
+        </div>
       </section>
+
+      {cleanupSuggestions.length > 0 && (
+        <section className="insight-panel">
+          <div>
+            <div className="insight-title">智能清理建议</div>
+            <div className="insight-copy">
+              检测到 {cleanupSuggestions.length} 条重复或低信息密度内容，可批量清理。
+            </div>
+          </div>
+          <div className="insight-actions">
+            <button className="danger-button" onClick={handleApplyCleanup}>清理建议项</button>
+            <button className="pin-button" onClick={() => setCleanupSuggestions([])}>稍后再说</button>
+          </div>
+        </section>
+      )}
+
+      {aiPanel && (
+        <section className="ai-panel">
+          <div className="ai-panel__head">
+            <div className="insight-title">{aiPanel.title}</div>
+            <button className="pin-button" onClick={() => setAiPanel(null)}>关闭</button>
+          </div>
+          <textarea className="ai-prompt" value={aiPanel.prompt} readOnly />
+          <div className="insight-actions">
+            <button className="ai-button" onClick={copyAiPrompt}>复制提示</button>
+          </div>
+        </section>
+      )}
 
       <section className="list-panel">
         {loading ? (
@@ -287,7 +385,7 @@ function MainApp() {
           items.map(item => (
             item.type === 'image'
               ? <ImageCard key={item.id} item={item} onCopy={handleCopy} onDelete={handleDelete} onTogglePinned={handleTogglePinned} />
-              : <TextCard key={item.id} item={item} onCopy={handleCopy} onDelete={handleDelete} onTogglePinned={handleTogglePinned} />
+              : <TextCard key={item.id} item={item} onCopy={handleCopy} onDelete={handleDelete} onTogglePinned={handleTogglePinned} onAiAction={handleAiAction} />
           ))
         )}
       </section>

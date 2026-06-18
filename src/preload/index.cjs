@@ -5,6 +5,8 @@ contextBridge.exposeInMainWorld('electronAPI', {
   listPinnedHistory: () => ipcRenderer.invoke('history:pinnedList'),
   togglePinnedHistoryItem: id => ipcRenderer.invoke('history:togglePinned', id),
   deleteHistoryItem: id => ipcRenderer.invoke('history:delete', id),
+  deleteManyHistoryItems: ids => ipcRenderer.invoke('history:deleteMany', ids),
+  listCleanupSuggestions: () => ipcRenderer.invoke('history:cleanupSuggestions'),
   copyHistoryItem: id => ipcRenderer.invoke('history:copy', id),
   getSettings: () => ipcRenderer.invoke('settings:get'),
   setRetentionDays: retentionDays => ipcRenderer.invoke('settings:setRetentionDays', retentionDays),

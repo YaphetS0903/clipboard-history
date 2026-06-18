@@ -128,6 +128,8 @@ img {
 
 .top-panel,
 .toolbar-card,
+.insight-panel,
+.ai-panel,
 .item-card,
 .empty-state,
 .pinned-card,
@@ -186,6 +188,78 @@ img {
 .search-input:focus {
   border-color: #7fb5f7;
   box-shadow: 0 0 0 3px rgba(127, 181, 247, 0.15);
+}
+
+.smart-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.smart-hint {
+  color: #748aa8;
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.insight-panel,
+.ai-panel {
+  padding: 14px;
+}
+
+.insight-panel {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.insight-title {
+  color: #275a93;
+  font-size: 14px;
+  font-weight: 700;
+}
+
+.insight-copy {
+  margin-top: 4px;
+  color: #6c819f;
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.insight-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.ai-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.ai-panel__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.ai-prompt {
+  width: 100%;
+  min-height: 132px;
+  resize: vertical;
+  border: 1px solid #d4e4f8;
+  border-radius: 12px;
+  padding: 10px 12px;
+  background: #f8fbff;
+  color: #314a6a;
+  line-height: 1.55;
+  outline: none;
 }
 
 .setting-grid {
@@ -318,14 +392,18 @@ img {
 .action-group {
   display: flex;
   gap: 8px;
+  flex-wrap: wrap;
+  justify-content: flex-end;
 }
 
 .pin-button,
+.ai-button,
 .danger-button,
 .pinned-panel__collapse {
   padding: 8px 12px;
   border-radius: 10px;
   cursor: pointer;
+  white-space: nowrap;
 }
 
 .pin-button {
@@ -336,6 +414,11 @@ img {
 .pin-button--active {
   background: #dff0ff;
   color: #1f6eb8;
+}
+
+.ai-button {
+  background: #ecf7f4;
+  color: #217868;
 }
 
 .danger-button {
